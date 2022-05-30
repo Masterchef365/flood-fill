@@ -1,0 +1,5 @@
+/target
+*.ppm
+*.pgm
+*.tif
+test_images/
