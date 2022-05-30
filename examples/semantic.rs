@@ -1,7 +1,8 @@
 use anyhow::{bail, Context, Result};
-use floodfill::Image;
+use floodfill::{Image, Rect};
 use std::fs::File;
 use std::path::Path;
+use std::time::Instant;
 
 fn main() -> Result<()> {
     let path = std::env::args().skip(1).next().context("Requires path")?;
@@ -9,12 +10,29 @@ fn main() -> Result<()> {
 
     let width = img.width;
 
-    let rgb = sample_img_channels(&img, &[0, 1, 2]);
+    let mut rgb = sample_img_channels(&img, &[0, 1, 2]);
     let mut labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
 
-    floodfill::fill(873, 377, 0, &mut labels);
+    write_netpbm(
+        "out.pgm",
+        &labels.data,
+        width as usize,
+        ImageChannels::Grayscale,
+    )?;
 
-    write_netpbm("out.pgm", &labels.data, width as usize, ImageChannels::Grayscale)?;
+    //let rect = floodfill::fill(873, 377, 0, &mut labels);
+    //let rect = floodfill::fill(0, 0, 255, &mut labels);
+    let start = Instant::now();
+    let bboxes = floodfill::bboxes(0xff, &mut labels);
+    let elapsed = start.elapsed();
+
+    dbg!(&bboxes);
+    println!("Time: {}ms", elapsed.as_secs_f32() * 1000.);
+
+    for (bbox, _) in &bboxes {
+        draw_bbox(&mut rgb, *bbox);
+    }
+
     write_netpbm("out.ppm", &rgb.data, width as usize, ImageChannels::Rgb)?;
 
     Ok(())
@@ -48,7 +66,8 @@ impl MinimalImage {
     pub fn calc_idx(&self, x: i32, y: i32) -> Option<usize> {
         let x_bound = x >= 0 && x < self.width as i32;
         let y_bound = y >= 0 && y < self.height() as i32;
-        (x_bound && y_bound).then(|| (x + y * self.row_size() as i32) as usize)
+        (x_bound && y_bound)
+            .then(|| (x * self.n_channels as i32 + y * self.row_size() as i32) as usize)
     }
 }
 
@@ -136,5 +155,25 @@ impl Image for MinimalImage {
         if let Some(idx) = self.calc_idx(x, y) {
             self.data[idx] = pixel;
         }
+    }
+
+    fn width(&self) -> usize {
+        self.width as _
+    }
+
+    fn height(&self) -> usize {
+        self.height()
+    }
+}
+
+fn draw_bbox(image: &mut MinimalImage, bbox: Rect) {
+    for i in bbox.top..bbox.bottom {
+        image.set_pixel(bbox.left, i, 0xff);
+        image.set_pixel(bbox.right, i, 0xff);
+    }
+
+    for i in bbox.left..bbox.right {
+        image.set_pixel(i, bbox.top, 0xff);
+        image.set_pixel(i, bbox.bottom, 0xff);
     }
 }
