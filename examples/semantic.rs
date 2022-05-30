@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use floodfill::Image;
 use std::fs::File;
 use std::path::Path;
 
@@ -9,10 +10,12 @@ fn main() -> Result<()> {
     let width = img.width;
 
     let rgb = sample_img_channels(&img, &[0, 1, 2]);
-    let labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
+    let mut labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
 
-    write_netpbm("out.pgm", &labels, width as usize, ImageChannels::Grayscale)?;
-    write_netpbm("out.ppm", &rgb, width as usize, ImageChannels::Rgb)?;
+    floodfill::fill(873, 377, 0, &mut labels);
+
+    write_netpbm("out.pgm", &labels.data, width as usize, ImageChannels::Grayscale)?;
+    write_netpbm("out.ppm", &rgb.data, width as usize, ImageChannels::Rgb)?;
 
     Ok(())
 }
@@ -40,6 +43,12 @@ impl MinimalImage {
 
     pub fn height(&self) -> usize {
         self.data.len() / self.row_size()
+    }
+
+    pub fn calc_idx(&self, x: i32, y: i32) -> Option<usize> {
+        let x_bound = x >= 0 && x < self.width as i32;
+        let y_bound = y >= 0 && y < self.height() as i32;
+        (x_bound && y_bound).then(|| (x + y * self.row_size() as i32) as usize)
     }
 }
 
@@ -77,7 +86,12 @@ pub enum ImageChannels {
     Grayscale,
 }
 
-pub fn write_netpbm(path: &str, image: &[u8], width: usize, channels: ImageChannels) -> std::io::Result<()> {
+pub fn write_netpbm(
+    path: &str,
+    image: &[u8],
+    width: usize,
+    channels: ImageChannels,
+) -> std::io::Result<()> {
     use std::io::Write;
     let mut writer = std::fs::File::create(path)?;
 
@@ -94,10 +108,7 @@ pub fn write_netpbm(path: &str, image: &[u8], width: usize, channels: ImageChann
     Ok(())
 }
 
-pub fn sample_img_channels(
-    image: &MinimalImage,
-    channels: &[usize],
-) -> Vec<u8> {
+pub fn sample_img_channels(image: &MinimalImage, channels: &[usize]) -> MinimalImage {
     let mut data = vec![];
     for row in 0..image.height() {
         let row = image.row(row);
@@ -107,6 +118,23 @@ pub fn sample_img_channels(
             }
         }
     }
-    data
+
+    MinimalImage {
+        n_channels: channels.len() as u32,
+        width: image.width,
+        data,
+    }
 }
 
+impl Image for MinimalImage {
+    type Pixel = u8;
+    fn get_pixel(&self, x: i32, y: i32) -> Option<Self::Pixel> {
+        self.calc_idx(x, y).map(|idx| self.data[idx])
+    }
+
+    fn set_pixel(&mut self, x: i32, y: i32, pixel: Self::Pixel) {
+        if let Some(idx) = self.calc_idx(x, y) {
+            self.data[idx] = pixel;
+        }
+    }
+}
