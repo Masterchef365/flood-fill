@@ -7,15 +7,12 @@ fn main() -> Result<()> {
     let img = read_image(path)?;
 
     let width = img.width;
-    let n_channels = img.n_channels();
-    let label_img: Vec<u8> = img
-        .data
-        .into_iter()
-        .skip(LABEL_CHANNEL_IDX)
-        .step_by(n_channels as usize)
-        .collect();
 
-    write_netpbm("out.pgm", &label_img, width as usize, ImageChannels::Grayscale)?;
+    let rgb = sample_img_channels(&img, &[0, 1, 2]);
+    let labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
+
+    write_netpbm("out.pgm", &labels, width as usize, ImageChannels::Grayscale)?;
+    write_netpbm("out.ppm", &rgb, width as usize, ImageChannels::Rgb)?;
 
     Ok(())
 }
