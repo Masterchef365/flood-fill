@@ -9,6 +9,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let images = [
         "images/10363723.TOP.DeepTraining.MoreGeo.HHR.tif",
         "images/10363824.TOP.DeepTraining.MoreGeo.HHR.tif",
+        "images/10363727.TOP.DeepTraining.MoreGeo.HHR.tif",
+        "images/10363728.TOP.DeepTraining.MoreGeo.HHR.tif",
+        "images/10363729.TOP.DeepTraining.MoreGeo.HHR.tif",
+        "images/10363730.TOP.DeepTraining.MoreGeo.HHR.tif",
     ];
 
     for path in images {
