@@ -69,7 +69,9 @@ pub fn fill<I: Image>(x: i32, y: i32, nv: I::Pixel, mut img: I) -> Option<Rect> 
         rect.insert(x, y);
     };
 
-    let mut s = vec![(x, x, y, 1), (x, x, y - 1, -1)];
+    let mut s = Vec::new();
+    s.push((x, x, y, 1)); 
+    s.push((x, x, y - 1, -1));
 
     while let Some((mut x1, x2, y, dy)) = s.pop() {
         let mut x = x1;

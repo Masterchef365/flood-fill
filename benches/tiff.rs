@@ -1,19 +1,24 @@
-use anyhow::{bail, Context, Result};
-use floodfill::{Image, Rect};
+use anyhow::{bail, Result};
+use floodfill::Image;
 use std::fs::File;
 use std::path::Path;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let path = "images/10363824.TOP.DeepTraining.MoreGeo.HHR.tif";
-    let img = read_image(path).unwrap();
-    let labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
+    let images = [
+        "images/10363723.TOP.DeepTraining.MoreGeo.HHR.tif",
+        "images/10363824.TOP.DeepTraining.MoreGeo.HHR.tif",
+    ];
 
-     c.bench_with_input(BenchmarkId::new("input_example", path), &labels, |b, s| {
-         let mut labels = s.clone();
-        b.iter(|| floodfill::bboxes(0xff, &mut labels));
-    });
+    for path in images {
+        let img = read_image(path).unwrap();
+        let labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
+
+        c.bench_with_input(BenchmarkId::new("input_example", path), &labels, |b, s| {
+            b.iter(|| floodfill::bboxes(0xff, &mut s.clone()));
+        });
+    }
 }
 
 criterion_group!(benches, criterion_benchmark);
@@ -38,7 +43,6 @@ pub fn sample_img_channels(image: &MinimalImage, channels: &[usize]) -> MinimalI
         data,
     }
 }
-
 
 pub fn read_image(path: impl AsRef<Path>) -> Result<MinimalImage> {
     let file = std::io::BufReader::new(File::open(path)?);
@@ -68,7 +72,6 @@ pub fn read_image(path: impl AsRef<Path>) -> Result<MinimalImage> {
         data,
     })
 }
-
 
 #[derive(Clone)]
 pub struct MinimalImage {
