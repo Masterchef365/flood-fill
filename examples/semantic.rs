@@ -62,11 +62,14 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Fill contiguous areas with clear color if and only if they are surrounded on all sides
-/// (including corners) with the same color. This *should* save some time in the filling code...
+// /// Fill contiguous areas with clear color if and only if they are surrounded on all sides
+// /// (including corners) with the same color. This saves time in the clearing code, since there is
+// /// not as much unexplored, non-contiguous geometry.
+
+/// What the fuck
 fn optimize_image(img: &mut MinimalImage, clear: u8) {
-    let tile_w = 8;
-    let tile_h = 8;
+    let tile_w = 1;
+    let tile_h = 1;
 
     let mut fill_coords = vec![];
 
