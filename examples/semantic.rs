@@ -13,6 +13,12 @@ fn main() -> Result<()> {
     let mut rgb = sample_img_channels(&img, &[0, 1, 2]);
     let mut labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
 
+    let clear = 0xff;
+
+    let start = Instant::now();
+    optimize_image(&mut labels, clear);
+    let opt_elapsed = start.elapsed();
+
     write_netpbm(
         "out.pgm",
         &labels.data,
@@ -22,12 +28,18 @@ fn main() -> Result<()> {
 
     //let rect = floodfill::fill(873, 377, 0, &mut labels);
     //let rect = floodfill::fill(0, 0, 255, &mut labels);
+
     let start = Instant::now();
-    let bboxes = floodfill::bboxes(0xff, &mut labels);
-    let elapsed = start.elapsed();
+    let bboxes = floodfill::bboxes(clear, &mut labels);
+    let bbox_elapsed = start.elapsed();
 
     dbg!(&bboxes);
-    println!("Time: {}ms", elapsed.as_secs_f32() * 1000.);
+    println!("Opt time: {}ms", opt_elapsed.as_secs_f32() * 1000.);
+    println!("Bbox time: {}ms", bbox_elapsed.as_secs_f32() * 1000.);
+    println!(
+        "Total time: {}ms",
+        (bbox_elapsed + opt_elapsed).as_secs_f32() * 1000.
+    );
 
     for (bbox, _) in &bboxes {
         draw_bbox(&mut rgb, *bbox);
@@ -38,7 +50,47 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-const LABEL_CHANNEL_IDX: usize = 19;
+/// Fill contiguous areas with clear color if and only if they are surrounded on all sides
+/// (including corners) with the same color. This *should* save some time in the filling code...
+fn optimize_image(img: &mut MinimalImage, clear: u8) {
+    let tile_w = 8;
+    let tile_h = 8;
+
+    let mut fill_coords = vec![];
+
+    // Discover tiles
+    for tile_row in 1..(img.height() / tile_h) - 1 {
+        let row = tile_row * tile_h;
+
+        for tile_col in 1..(img.width() / tile_w) - 1 {
+            let col = tile_col * tile_w;
+
+            let mut all_match = true;
+            let px = img.row(row)[col];
+
+            for y in (row - 1..).take(tile_h + 2) {
+                let r = &img.row(y)[col - 1..][..tile_w + 2];
+                all_match &= r.iter().all(|&mem| px == mem);
+                if !all_match {
+                    break;
+                };
+            }
+
+            if all_match {
+                fill_coords.push((col, row));
+            }
+        }
+    }
+
+    // Draw tiles
+    for (col, row) in fill_coords {
+        for y in (row..).take(tile_h) {
+            img.row_mut(y)[col..][..tile_w].fill(clear);
+        }
+    }
+}
+
+const LABEL_CHANNEL_IDX: usize = 0;
 
 pub struct MinimalImage {
     pub n_channels: u32,
@@ -49,6 +101,11 @@ pub struct MinimalImage {
 impl MinimalImage {
     pub fn row(&self, row: usize) -> &[u8] {
         &self.data[row * self.row_size()..(row + 1) * self.row_size()]
+    }
+
+    pub fn row_mut(&mut self, row: usize) -> &mut [u8] {
+        let range = row * self.row_size()..(row + 1) * self.row_size();
+        &mut self.data[range]
     }
 
     pub fn row_size(&self) -> usize {
@@ -82,7 +139,8 @@ pub fn read_image(path: impl AsRef<Path>) -> Result<MinimalImage> {
 
     // TODO: Check if all depths are 8
     let n_channels = match tiff.colortype()? {
-        tiff::ColorType::Other(depths) => depths.len() as u32,
+        tiff::ColorType::RGB(_) => 3,
+        //tiff::ColorType::Other(depths) => depths.len() as u32,
         _ => bail!("Only accepts u8 TIFFs"),
     };
 
