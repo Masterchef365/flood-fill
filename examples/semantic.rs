@@ -12,8 +12,9 @@ fn main() -> Result<()> {
 
     let mut rgb = sample_img_channels(&img, &[0, 1, 2]);
     let mut labels = sample_img_channels(&img, &[LABEL_CHANNEL_IDX]);
+    let mut labels_copy = labels.clone();
 
-    let clear = 0x80;
+    let clear = 0xff;
 
     let start = Instant::now();
     optimize_image(&mut labels, clear);
@@ -50,14 +51,22 @@ fn main() -> Result<()> {
 
     write_netpbm("out.ppm", &rgb.data, width as usize, ImageChannels::Rgb)?;
 
+    println!("Checking against original...");
+
+    let start = Instant::now();
+    let no_opt_bboxes = floodfill::bboxes(clear, &mut labels_copy);
+    let no_opt_bbox_elapsed = start.elapsed();
+    assert_eq!(no_opt_bboxes, bboxes);
+    eprintln!("No opt time: {}ms", no_opt_bbox_elapsed.as_secs_f32() * 1000.);
+
     Ok(())
 }
 
 /// Fill contiguous areas with clear color if and only if they are surrounded on all sides
 /// (including corners) with the same color. This *should* save some time in the filling code...
 fn optimize_image(img: &mut MinimalImage, clear: u8) {
-    let tile_w = 1;
-    let tile_h = 1;
+    let tile_w = 8;
+    let tile_h = 8;
 
     let mut fill_coords = vec![];
 
@@ -70,7 +79,7 @@ fn optimize_image(img: &mut MinimalImage, clear: u8) {
         for tile_col in 1..(img.width() / tile_w) - 1 {
             let col = tile_col * tile_w;
 
-            if tile_col & 1 == 0 { continue }
+            //if tile_col & 1 == 0 { continue }
 
             let mut all_match = true;
             let px = img.row(row)[col];
@@ -99,6 +108,7 @@ fn optimize_image(img: &mut MinimalImage, clear: u8) {
 
 const LABEL_CHANNEL_IDX: usize = 0;
 
+#[derive(Clone)]
 pub struct MinimalImage {
     pub n_channels: u32,
     pub width: u32,
